@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     disease ENUM('diabetes', 'pcod', 'thyroid', 'obesity', 'bp') NOT NULL,
+    role ENUM('admin', 'user') DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS food (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     barcode VARCHAR(50) UNIQUE,
+     barcode_id VARCHAR(100) UNIQUE,
     description TEXT,
     category VARCHAR(100),
     brand VARCHAR(100),

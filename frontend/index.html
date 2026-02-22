@@ -137,7 +137,8 @@
                             <button class="admin-tab-btn active"
                                 onclick="switchAdminTab('dashboard')">Dashboard</button>
                             <button class="admin-tab-btn" onclick="switchAdminTab('addFood')">Add Food</button>
-                            <button class="admin-tab-btn" onclick="switchAdminTab('rules')">Disease Rules</button>
+                            <button class="admin-tab-btn" onclick="switchAdminTab('foods')">All Foods</button>
+                            <button class="admin-tab-btn" onclick="switchAdminTab('history')">Scan History</button>
                         </div>
 
                         <!-- Admin Dashboard -->
@@ -161,19 +162,109 @@
                         <!-- Add Food Form -->
                         <div id="addFoodTab" class="admin-tab-content">
                             <form id="addFoodForm" class="form-container">
-                                <input type="text" placeholder="Food Name" required>
-                                <input type="text" placeholder="Barcode" required>
-                                <input type="number" placeholder="Calories" required>
-                                <input type="number" placeholder="Sugar (g)" required>
-                                <input type="number" placeholder="Carbs (g)" required>
-                                <input type="number" placeholder="Protein (g)" required>
-                                <button type="submit" class="btn btn-primary">Add Food</button>
+                                <h3>Add New Food</h3>
+                                
+                                <div class="form-group">
+                                    <label>Food Name *</label>
+                                    <input type="text" id="foodName" placeholder="e.g., Whole Wheat Bread" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Barcode *</label>
+                                    <input type="text" id="foodBarcode" placeholder="e.g., 8901234567890" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Description</label>
+                                    <textarea id="foodDescription" placeholder="Food description"></textarea>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Category</label>
+                                        <input type="text" id="foodCategory" placeholder="e.g., Bakery">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Brand</label>
+                                        <input type="text" id="foodBrand" placeholder="e.g., Brand Name">
+                                    </div>
+                                </div>
+                                
+                                <h4>Nutrition Information</h4>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Calories</label>
+                                        <input type="number" id="foodCalories" placeholder="kcal">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Sugar (g)</label>
+                                        <input type="number" step="0.1" id="foodSugar" placeholder="g">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Carbs (g)</label>
+                                        <input type="number" step="0.1" id="foodCarbs" placeholder="g">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Protein (g)</label>
+                                        <input type="number" step="0.1" id="foodProtein" placeholder="g">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Fat (g)</label>
+                                        <input type="number" step="0.1" id="foodFat" placeholder="g">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Saturated Fat (g)</label>
+                                        <input type="number" step="0.1" id="foodSaturatedFat" placeholder="g">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Fiber (g)</label>
+                                        <input type="number" step="0.1" id="foodFiber" placeholder="g">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Sodium (mg)</label>
+                                        <input type="number" step="0.1" id="foodSodium" placeholder="mg">
+                                    </div>
+                                </div>
+                                
+                                <div id="addFoodMessage" class="message" style="display:none;"></div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <span id="addFoodBtnText">Add Food</span>
+                                    <span id="addFoodSpinner" class="spinner" style="display:none;">⏳</span>
+                                </button>
                             </form>
+                            
+                            <div id="qrResultContainer" class="qr-result-container" style="display:none;">
+                                <h4>QR Code Generated!</h4>
+                                <div id="qrPreview" class="qr-preview-large"></div>
+                                <button onclick="downloadGeneratedQR()" class="btn btn-secondary">Download QR Code</button>
+                            </div>
                         </div>
 
-                        <!-- Rules Management -->
-                        <div id="rulesTab" class="admin-tab-content">
-                            <p>Disease rules management interface</p>
+                        <!-- Foods List -->
+                        <div id="foodsTab" class="admin-tab-content">
+                            <h3>All Foods</h3>
+                            <div id="foodsList" class="foods-list">
+                                <p>Loading foods...</p>
+                            </div>
+                        </div>
+
+                        <!-- Scan History -->
+                        <div id="historyTab" class="admin-tab-content">
+                            <h3>Scan History</h3>
+                            <div id="historyList" class="history-list">
+                                <p>Loading history...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -183,6 +274,7 @@
 
     <script src="script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </body>
 
 </html>

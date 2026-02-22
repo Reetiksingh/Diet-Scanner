@@ -57,13 +57,21 @@ router.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: user.id, email: user.email, disease: user.disease },
+            { id: user.id, email: user.email, disease: user.disease, role: user.role || 'user' },
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
         connection.release();
-        res.json({ token, user: { id: user.id, username: user.username, disease: user.disease } });
+        res.json({ 
+            token, 
+            user: { 
+                id: user.id, 
+                username: user.username, 
+                disease: user.disease,
+                role: user.role || 'user'
+            } 
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

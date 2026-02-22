@@ -137,26 +137,7 @@ projectdi/
 
 ---
 
-## Total Project Statistics
 
-| Metric | Count |
-|--------|-------|
-| **Total Files** | 28 |
-| **Total Lines of Code** | 3,500+ |
-| **Backend Files** | 10 |
-| **Frontend Files** | 3 |
-| **Documentation Pages** | 4 |
-| **HTML Elements** | 150+ |
-| **CSS Classes** | 100+ |
-| **JavaScript Functions** | 40+ |
-| **API Endpoints** | 7 |
-| **Database Tables** | 7 |
-| **SQL Records (Sample)** | 50+ |
-| **Disease Rules** | 25+ |
-| **Viva Questions** | 55 |
-| **Flowcharts** | 6 |
-
----
 
 ## What Each Component Does
 
@@ -243,11 +224,7 @@ database/schema.sql
 2. Use: `start.sh` (macOS/Linux) or `start.cmd` (Windows)
 3. Access: `frontend/index.html` in browser
 
-### For Viva Preparation
-1. Read: `docs/VIVA_QA.md` (55 questions)
-2. Understand: Disease rules in `backend/utils/diseaseRuleEngine.js`
-3. Know: Database schema in `database/schema.sql`
-4. Practice: Demo with sample barcodes
+
 
 ### For Development
 1. Backend: `backend/` folder

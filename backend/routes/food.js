@@ -4,21 +4,55 @@ const foodDatabase = require('../utils/foodDatabase');
 const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
-// Search food by barcode
+// Search food by barcode or barcode_id
 router.get('/search/:barcode', authenticateToken, async (req, res) => {
     const { barcode } = req.params;
 
     try {
-        // Search in local food database first
-        const food = foodDatabase.find(f => f.barcode === barcode);
+        const connection = await pool.getConnection();
 
-        if (food) {
-            return res.json({ success: true, food });
+        // Search in MySQL database by barcode or barcode_id
+        const [foods] = await connection.execute(
+            `SELECT f.*, 
+                    n.calories, n.sugar, n.carbs, n.protein, n.fat, 
+                    n.saturated_fat, n.fiber, n.sodium, n.potassium, n.iron, n.calcium
+             FROM food f
+             LEFT JOIN nutrition n ON f.id = n.food_id
+             WHERE f.barcode = ? OR f.barcode_id = ?`,
+            [barcode, barcode]
+        );
+
+        connection.release();
+
+        if (foods.length > 0) {
+            const food = foods[0];
+            // Format food data for recommendation engine
+            const formattedFood = {
+                id: food.id,
+                name: food.name,
+                barcode: food.barcode,
+                barcode_id: food.barcode_id,
+                calories: food.calories || 0,
+                sugar: food.sugar || 0,
+                carbs: food.carbs || 0,
+                protein: food.protein || 0,
+                fat: food.fat || 0,
+                fiber: food.fiber || 0,
+                sodium: food.sodium || 0,
+                alternatives: [] // Can be populated from alternatives table if needed
+            };
+            return res.json({ success: true, food: formattedFood });
         }
 
-        // If not found, you could integrate with external API like Open Food Facts
+        // Fallback to local food database
+        const localFood = foodDatabase.find(f => f.barcode === barcode);
+        if (localFood) {
+            return res.json({ success: true, food: localFood });
+        }
+
         res.json({ success: false, message: 'Food not found in database' });
     } catch (error) {
+        console.error('Error searching food:', error);
         res.status(500).json({ error: error.message });
     }
 });

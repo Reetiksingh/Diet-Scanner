@@ -90,6 +90,31 @@ function logout() {
     document.getElementById('dashboardPage').classList.remove('active');
 }
 
+// ============ ADMIN MENU VISIBILITY ============
+
+function updateAdminMenuVisibility() {
+    const adminMenuItem = document.querySelector('.menu-item[onclick="switchPage(\'admin\')"]');
+    const adminSection = document.getElementById('adminSection');
+    
+    if (!currentUser) {
+        // Hide admin menu if no user
+        if (adminMenuItem) adminMenuItem.style.display = 'none';
+        return;
+    }
+
+    // Check if user is admin
+    const isAdmin = currentUser.role === 'admin';
+    
+    if (adminMenuItem) {
+        adminMenuItem.style.display = isAdmin ? 'block' : 'none';
+    }
+    
+    // If user is not admin and somehow on admin page, redirect to scanner
+    if (!isAdmin && adminSection && adminSection.classList.contains('active')) {
+        switchPage('scanner');
+    }
+}
+
 // ============ PAGE NAVIGATION ============
 
 function showDashboard() {
@@ -101,6 +126,9 @@ function showDashboard() {
         document.getElementById('userInfo').textContent = `Welcome, ${currentUser.username}!`;
         document.getElementById('profileDisease').textContent = getDiseaseDisplay(currentUser.disease);
         loadDietTips();
+        
+        // Hide/show admin menu based on role
+        updateAdminMenuVisibility();
     }
 }
 
@@ -133,6 +161,9 @@ function switchPage(page) {
 // ============ SCANNER FUNCTIONS ============
 
 let cameraActive = false;
+let qrScanInterval = null;
+let canvas = null;
+let canvasContext = null;
 
 async function toggleCamera() {
     const video = document.getElementById('video');
@@ -149,10 +180,22 @@ async function toggleCamera() {
             cameraActive = true;
             cameraBtn.textContent = '📷 Stop Camera';
 
+            // Setup canvas for QR scanning
+            if (!canvas) {
+                canvas = document.createElement('canvas');
+                canvasContext = canvas.getContext('2d');
+            }
+
+            // Start QR code scanning
+            startQRScanning(video);
+
         } catch (error) {
             alert('Camera access denied: ' + error.message);
         }
     } else {
+        // Stop QR scanning
+        stopQRScanning();
+
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
             video.srcObject = null;
@@ -160,6 +203,69 @@ async function toggleCamera() {
 
         cameraActive = false;
         cameraBtn.textContent = '📷 Start Camera';
+    }
+}
+
+function startQRScanning(video) {
+    if (qrScanInterval) {
+        clearInterval(qrScanInterval);
+    }
+
+    qrScanInterval = setInterval(() => {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // Use jsQR library to decode QR code
+            if (typeof jsQR !== 'undefined') {
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                
+                if (code) {
+                    // QR code detected!
+                    const barcode_id = code.data;
+                    console.log('QR Code detected:', barcode_id);
+                    
+                    // Stop scanning
+                    stopQRScanning();
+                    
+                    // Search food by barcode_id
+                    searchFoodByBarcodeId(barcode_id);
+                }
+            }
+        }
+    }, 100); // Check every 100ms
+}
+
+function stopQRScanning() {
+    if (qrScanInterval) {
+        clearInterval(qrScanInterval);
+        qrScanInterval = null;
+    }
+}
+
+async function searchFoodByBarcodeId(barcode_id) {
+    try {
+        // Search food by barcode_id (QR code contains barcode_id)
+        const response = await fetch(`${API_URL}/food/search/${barcode_id}`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        const data = await response.json();
+        
+        if (data.success && data.food) {
+            // Found food, get recommendation
+            getRecommendation(data.food);
+        } else {
+            alert('Food not found for QR code: ' + barcode_id + '\n\nPlease ensure the food is added to the database by an admin.');
+        }
+    } catch (error) {
+        console.error('Error searching food:', error);
+        alert('Error searching food. Please try again.');
     }
 }
 
@@ -483,12 +589,18 @@ function switchAdminTab(tab) {
     if (tab === 'dashboard') {
         document.querySelectorAll('.admin-tab-btn')[0].classList.add('active');
         document.getElementById('adminDashboard').classList.add('active');
+        loadAdminStats();
     } else if (tab === 'addFood') {
         document.querySelectorAll('.admin-tab-btn')[1].classList.add('active');
         document.getElementById('addFoodTab').classList.add('active');
-    } else {
+    } else if (tab === 'foods') {
         document.querySelectorAll('.admin-tab-btn')[2].classList.add('active');
-        document.getElementById('rulesTab').classList.add('active');
+        document.getElementById('foodsTab').classList.add('active');
+        loadAllFoods();
+    } else {
+        document.querySelectorAll('.admin-tab-btn')[3].classList.add('active');
+        document.getElementById('historyTab').classList.add('active');
+        loadAdminHistory();
     }
 }
 
@@ -498,12 +610,149 @@ async function loadAdminStats() {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
 
-        const stats = await response.json();
-        document.getElementById('statUsers').textContent = stats.total_users.toLocaleString();
-        document.getElementById('statFoods').textContent = stats.total_foods.toLocaleString();
-        document.getElementById('statScans').textContent = stats.daily_scans.toLocaleString();
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('statUsers').textContent = data.total_users.toLocaleString();
+            document.getElementById('statFoods').textContent = data.total_foods.toLocaleString();
+            document.getElementById('statScans').textContent = data.daily_scans.toLocaleString();
+        }
     } catch (error) {
         console.error('Error loading stats:', error);
+    }
+}
+
+async function loadAllFoods() {
+    try {
+        const response = await fetch(`${API_URL}/admin/foods`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const foodsList = document.getElementById('foodsList');
+            if (!foodsList) return;
+
+            if (data.foods.length === 0) {
+                foodsList.innerHTML = '<p>No foods in database. Add your first food!</p>';
+                return;
+            }
+
+            let html = '<div class="foods-grid">';
+            data.foods.forEach(food => {
+                html += `
+                    <div class="food-card">
+                        <h4>${food.name}</h4>
+                        <p><strong>Barcode:</strong> ${food.barcode || 'N/A'}</p>
+                        <p><strong>Category:</strong> ${food.category || 'N/A'}</p>
+                        ${food.barcode_id ? `
+                            <div class="qr-preview-container">
+                                <img src="${API_URL}/admin/food/${food.id}/qr" alt="QR Code" class="qr-preview">
+                            </div>
+                            <button onclick="downloadQR(${food.id}, '${food.name}')" class="btn btn-small">Download QR</button>
+                        ` : ''}
+                        <div class="food-actions">
+                            <button onclick="editFood(${food.id})" class="btn btn-small">Edit</button>
+                            <button onclick="deleteFood(${food.id})" class="btn btn-small btn-danger">Delete</button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            foodsList.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Error loading foods:', error);
+        if (error.message.includes('403')) {
+            alert('Access denied. Admin privileges required.');
+        }
+    }
+}
+
+async function loadAdminHistory() {
+    try {
+        const response = await fetch(`${API_URL}/admin/history`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const historyList = document.getElementById('historyList');
+            if (!historyList) return;
+
+            if (data.history.length === 0) {
+                historyList.innerHTML = '<p>No scan history yet.</p>';
+                return;
+            }
+
+            let html = '<div class="history-table">';
+            data.history.forEach(item => {
+                const verdictClass = item.verdict && item.verdict.includes('Safe') ? 'verdict-safe' :
+                    item.verdict && item.verdict.includes('Limit') ? 'verdict-limit' : 'verdict-avoid';
+                
+                html += `
+                    <div class="history-row">
+                        <div class="history-cell"><strong>${item.food_name || 'Unknown'}</strong></div>
+                        <div class="history-cell">${item.username || 'Unknown'}</div>
+                        <div class="history-cell">${item.disease || 'N/A'}</div>
+                        <div class="history-cell"><span class="verdict-badge ${verdictClass}">${item.verdict || 'N/A'}</span></div>
+                        <div class="history-cell">${new Date(item.created_at).toLocaleString()}</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            historyList.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Error loading history:', error);
+    }
+}
+
+function downloadQR(foodId, foodName) {
+    const link = document.createElement('a');
+    link.href = `${API_URL}/admin/food/${foodId}/qr`;
+    link.download = `QR-${foodName.replace(/\s+/g, '-')}.png`;
+    link.click();
+}
+
+function downloadGeneratedQR() {
+    if (window.lastGeneratedQR) {
+        const link = document.createElement('a');
+        link.href = window.lastGeneratedQR.qrDataURL;
+        link.download = `QR-${window.lastGeneratedQR.foodName.replace(/\s+/g, '-')}.png`;
+        link.click();
+    }
+}
+
+async function editFood(foodId) {
+    // TODO: Implement edit food modal/form
+    alert('Edit food functionality - Coming soon!');
+}
+
+async function deleteFood(foodId) {
+    if (!confirm('Are you sure you want to delete this food?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/food/${foodId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Food deleted successfully');
+            loadAllFoods();
+        } else {
+            alert('Error deleting food: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting food:', error);
+        alert('Error deleting food');
     }
 }
 
@@ -524,6 +773,8 @@ function getDiseaseDisplay(disease) {
 
 window.addEventListener('load', () => {
     if (authToken && currentUser) {
+        currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        updateAdminMenuVisibility();
         showDashboard();
     } else {
         document.getElementById('loginPage').classList.add('active');
@@ -562,6 +813,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 localStorage.setItem('authToken', authToken);
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
+                // Hide/show admin menu based on role
+                updateAdminMenuVisibility();
+
                 showDashboard();
             } else {
                 alert(data.error || 'Login failed');
@@ -574,7 +828,117 @@ document.addEventListener("DOMContentLoaded", () => {
 
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // your register logic here
+        
+        const username = document.getElementById('regUsername').value;
+        const email = document.getElementById('regEmail').value;
+        const password = document.getElementById('regPassword').value;
+        const disease = document.getElementById('regDisease').value;
+
+        try {
+            const response = await fetch(`${API_URL}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password, disease })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('Registration successful! Please login.');
+                switchAuthTab('login');
+            } else {
+                alert(data.error || 'Registration failed');
+            }
+        } catch (error) {
+            console.error('Register error:', error);
+            alert('Connection error');
+        }
     });
+
+    // Admin form submission
+    const addFoodForm = document.getElementById('addFoodForm');
+    if (addFoodForm) {
+        addFoodForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const foodData = {
+                name: document.getElementById('foodName').value,
+                barcode: document.getElementById('foodBarcode').value,
+                description: document.getElementById('foodDescription').value,
+                category: document.getElementById('foodCategory').value,
+                brand: document.getElementById('foodBrand').value,
+                calories: parseFloat(document.getElementById('foodCalories').value) || null,
+                sugar: parseFloat(document.getElementById('foodSugar').value) || null,
+                carbs: parseFloat(document.getElementById('foodCarbs').value) || null,
+                protein: parseFloat(document.getElementById('foodProtein').value) || null,
+                fat: parseFloat(document.getElementById('foodFat').value) || null,
+                saturated_fat: parseFloat(document.getElementById('foodSaturatedFat').value) || null,
+                fiber: parseFloat(document.getElementById('foodFiber').value) || null,
+                sodium: parseFloat(document.getElementById('foodSodium').value) || null
+            };
+
+            const btnText = document.getElementById('addFoodBtnText');
+            const spinner = document.getElementById('addFoodSpinner');
+            const message = document.getElementById('addFoodMessage');
+            
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline';
+            message.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_URL}/admin/food`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(foodData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    message.textContent = 'Food added successfully!';
+                    message.className = 'message success';
+                    message.style.display = 'block';
+                    
+                    // Show QR code
+                    if (data.food && data.food.qr_code) {
+                        const qrContainer = document.getElementById('qrResultContainer');
+                        const qrPreview = document.getElementById('qrPreview');
+                        qrPreview.innerHTML = `<img src="${data.food.qr_code}" alt="QR Code" style="max-width: 300px;">`;
+                        qrContainer.style.display = 'block';
+                        
+                        // Store QR data for download
+                        window.lastGeneratedQR = {
+                            foodId: data.food.id,
+                            foodName: data.food.name,
+                            qrDataURL: data.food.qr_code
+                        };
+                    }
+                    
+                    // Reset form
+                    addFoodForm.reset();
+                    
+                    // Reload foods list if on that tab
+                    if (document.getElementById('foodsTab').classList.contains('active')) {
+                        loadAllFoods();
+                    }
+                } else {
+                    message.textContent = data.error || 'Failed to add food';
+                    message.className = 'message error';
+                    message.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error adding food:', error);
+                message.textContent = 'Connection error. Please try again.';
+                message.className = 'message error';
+                message.style.display = 'block';
+            } finally {
+                btnText.style.display = 'inline';
+                spinner.style.display = 'none';
+            }
+        });
+    }
 
 });

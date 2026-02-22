@@ -340,11 +340,6 @@ For issues or suggestions, please check:
 - Frontend console: Developer tools (F12)
 - Database connection: Check MySQL service
 
----
-
-## 📝 License
-
-This project is for educational purposes.
 
 ---
 
