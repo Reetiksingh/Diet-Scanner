@@ -1,0 +1,38 @@
+{
+    "classification": {
+        "avoidStatus": "AVOID",
+        "moderateStatus": "MODERATE",
+        "safeStatus": "SAFE"
+    },
+    "general": {
+        "calories": {
+            "max": 400,
+            "statusOnFail": "MODERATE",
+            "reason": "High calories"
+        }
+    },
+    "diabetes": {
+        "sugar": {
+            "max": 5,
+            "statusOnFail": "AVOID",
+            "reason": "High sugar"
+        },
+        "calories": {
+            "max": 350,
+            "statusOnFail": "MODERATE",
+            "reason": "High calories for diabetes"
+        }
+    },
+    "hypertension": {
+        "sodium": {
+            "max": 200,
+            "statusOnFail": "AVOID",
+            "reason": "High sodium"
+        },
+        "calories": {
+            "max": 450,
+            "statusOnFail": "MODERATE",
+            "reason": "High calorie load"
+        }
+    }
+}

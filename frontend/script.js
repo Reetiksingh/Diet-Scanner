@@ -3,6 +3,10 @@ const API_URL = 'http://localhost:8000/api';
 let authToken = localStorage.getItem('authToken');
 let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
 let scanHistory = JSON.parse(localStorage.getItem('scanHistory')) || [];
+const LABEL_SCAN_POLL_INTERVAL_MS = 2500;
+const LABEL_SCAN_MAX_POLL_ATTEMPTS = 24;
+let selectedLabelFile = null;
+let labelPreviewUrl = null;
 
 // ============ AUTH FUNCTIONS ============
 
@@ -315,6 +319,279 @@ async function getRecommendation(food) {
         displayResult(localResult);
         addToHistory(food, localResult);
     }
+}
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function normalizeScanStatus(status) {
+    return String(status || '').trim().toLowerCase();
+}
+
+function setLabelScanLoading(isLoading) {
+    const loadingEl = document.getElementById('scanLabelLoading');
+    const skeletonEl = document.getElementById('scanLabelSkeleton');
+    const buttonEl = document.getElementById('scanLabelBtn');
+
+    if (loadingEl) {
+        loadingEl.style.display = isLoading ? 'block' : 'none';
+    }
+
+    if (skeletonEl) {
+        skeletonEl.style.display = isLoading ? 'grid' : 'none';
+    }
+
+    if (buttonEl) {
+        buttonEl.disabled = isLoading;
+        buttonEl.textContent = isLoading ? 'Scanning...' : 'Scan Nutrition Label';
+    }
+}
+
+function setLabelScanStatus(message, isError = false) {
+    const statusEl = document.getElementById('scanLabelStatus');
+    if (!statusEl) return;
+
+    statusEl.textContent = message || '';
+    statusEl.style.color = message ? (isError ? '#c0392b' : '#5f6f7f') : '#5f6f7f';
+}
+
+function setLabelScanError(message) {
+    const errorEl = document.getElementById('scanLabelError');
+    if (!errorEl) return;
+
+    if (!message) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        return;
+    }
+
+    errorEl.style.display = 'block';
+    errorEl.textContent = message;
+}
+
+function setLabelPreview(file) {
+    const previewImage = document.getElementById('labelPreviewImage');
+    const previewEmpty = document.getElementById('labelPreviewEmpty');
+
+    if (!previewImage || !previewEmpty) {
+        return;
+    }
+
+    if (labelPreviewUrl) {
+        URL.revokeObjectURL(labelPreviewUrl);
+        labelPreviewUrl = null;
+    }
+
+    if (!file) {
+        previewImage.style.display = 'none';
+        previewImage.removeAttribute('src');
+        previewEmpty.style.display = 'flex';
+        return;
+    }
+
+    labelPreviewUrl = URL.createObjectURL(file);
+    previewImage.src = labelPreviewUrl;
+    previewImage.style.display = 'block';
+    previewEmpty.style.display = 'none';
+}
+
+function setDropZoneActive(isActive) {
+    const dropZone = document.getElementById('labelDropZone');
+    if (!dropZone) return;
+
+    dropZone.classList.toggle('is-dragover', Boolean(isActive));
+}
+
+function getDecisionClass(status) {
+    if (status === 'SAFE') return 'label-decision-safe';
+    if (status === 'MODERATE') return 'label-decision-moderate';
+    return 'label-decision-avoid';
+}
+
+function renderLabelScanResult(result) {
+    const resultEl = document.getElementById('scanLabelResult');
+    if (!resultEl) return;
+
+    const nutrition = result.nutrition || {};
+    const decisionStatus = typeof result.decision === 'string'
+        ? result.decision
+        : (result.decision && result.decision.status) || 'SAFE';
+    const reasons = Array.isArray(result.decision && result.decision.reasons)
+        ? result.decision.reasons
+        : (Array.isArray(result.reasons) ? result.reasons : []);
+
+    const reasonsHtml = reasons.length
+        ? reasons.map(reason => `<li class="label-reason-item">${escapeHtml(reason)}</li>`).join('')
+        : '<li class="label-reason-item">No risk flags found.</li>';
+
+    resultEl.innerHTML = `
+        <div class="label-result-header">
+            <div>
+                <span class="label-result-eyebrow">Scan Result</span>
+                <h4>Nutrition Insight</h4>
+            </div>
+            <span class="label-status-pill ${getDecisionClass(decisionStatus)}">${escapeHtml(decisionStatus)}</span>
+        </div>
+
+        <div class="label-metric-grid">
+            <div class="label-metric-item">
+                <span>Calories</span>
+                <strong>${escapeHtml(nutrition.calories)}</strong>
+            </div>
+            <div class="label-metric-item">
+                <span>Sugar</span>
+                <strong>${escapeHtml(nutrition.sugar)} g</strong>
+            </div>
+            <div class="label-metric-item">
+                <span>Fat</span>
+                <strong>${escapeHtml(nutrition.fat)} g</strong>
+            </div>
+            <div class="label-metric-item">
+                <span>Protein</span>
+                <strong>${escapeHtml(nutrition.protein)} g</strong>
+            </div>
+        </div>
+
+        <div class="label-result-meta">
+            <span><strong>Processing:</strong> ${escapeHtml(result.processingTime || '0ms')}</span>
+            <span><strong>Cache:</strong> ${escapeHtml(result.cache || 'MISS')}</span>
+        </div>
+
+        <div class="label-reasons-block">
+            <h5>Why this status?</h5>
+            <ul class="label-reason-list">${reasonsHtml}</ul>
+        </div>
+
+        <details class="label-raw-details">
+            <summary>View extracted OCR text</summary>
+            <pre>${escapeHtml(result.rawText || '')}</pre>
+        </details>
+    `;
+
+    resultEl.style.display = 'block';
+    setLabelScanError('');
+}
+
+async function pollLabelScanResult(jobId) {
+    for (let attempt = 1; attempt <= LABEL_SCAN_MAX_POLL_ATTEMPTS; attempt += 1) {
+        const headers = {};
+        if (authToken) {
+            headers.Authorization = `Bearer ${authToken}`;
+        }
+
+        const response = await fetch(`${API_URL}/scan-result/${jobId}`, { headers });
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Unable to fetch scan result');
+        }
+
+        const normalizedStatus = normalizeScanStatus(data.status);
+
+        if (normalizedStatus === 'completed') {
+            return data;
+        }
+
+        if (normalizedStatus === 'failed') {
+            throw new Error(data.error || 'Label scan failed');
+        }
+
+        setLabelScanStatus(`Scan is ${normalizedStatus || 'processing'}... (attempt ${attempt}/${LABEL_SCAN_MAX_POLL_ATTEMPTS})`);
+        await delay(LABEL_SCAN_POLL_INTERVAL_MS);
+    }
+
+    throw new Error('Scan timed out. Please try again.');
+}
+
+async function scanNutritionLabel() {
+    const fileInput = document.getElementById('labelImageInput');
+    const resultEl = document.getElementById('scanLabelResult');
+    const imageFile = selectedLabelFile || (fileInput && fileInput.files ? fileInput.files[0] : null);
+
+    if (!imageFile) {
+        setLabelScanError('Please upload a nutrition label image before starting the scan.');
+        return;
+    }
+
+    try {
+        setLabelScanLoading(true);
+        setLabelScanError('');
+        setLabelScanStatus('Uploading image...');
+
+        if (resultEl) {
+            resultEl.style.display = 'none';
+            resultEl.innerHTML = '';
+        }
+
+        const formData = new FormData();
+        formData.append('image', imageFile);
+
+        if (currentUser && currentUser.disease) {
+            formData.append('disease', currentUser.disease);
+        }
+
+        const headers = {};
+        if (authToken) {
+            headers.Authorization = `Bearer ${authToken}`;
+        }
+
+        const response = await fetch(`${API_URL}/scan-label`, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Unable to start label scan');
+        }
+
+        if (!data.jobId) {
+            throw new Error('No job id returned by server');
+        }
+
+        setLabelScanStatus(`Scan queued with job id ${data.jobId}. Waiting for result...`);
+
+        const result = await pollLabelScanResult(data.jobId);
+        renderLabelScanResult(result);
+        setLabelScanStatus('Scan complete.');
+    } catch (error) {
+        console.error('Label scan error:', error);
+        setLabelScanStatus('', true);
+        setLabelScanError(error.message || 'Scan failed');
+    } finally {
+        setLabelScanLoading(false);
+    }
+}
+
+function prepareLabelFile(file) {
+    if (!file) {
+        selectedLabelFile = null;
+        setLabelPreview(null);
+        setLabelScanStatus('');
+        return;
+    }
+
+    if (!file.type || !file.type.startsWith('image/')) {
+        selectedLabelFile = null;
+        setLabelPreview(null);
+        setLabelScanError('Only image files are supported for label scanning.');
+        return;
+    }
+
+    selectedLabelFile = file;
+    setLabelPreview(file);
+    setLabelScanError('');
+    setLabelScanStatus('Image ready for scanning.');
 }
 
 function applyLocalRules(food, disease) {
@@ -938,6 +1215,58 @@ document.addEventListener("DOMContentLoaded", () => {
                 btnText.style.display = 'inline';
                 spinner.style.display = 'none';
             }
+        });
+    }
+
+    const scanLabelBtn = document.getElementById('scanLabelBtn');
+    if (scanLabelBtn) {
+        scanLabelBtn.addEventListener('click', scanNutritionLabel);
+    }
+
+    const labelImageInput = document.getElementById('labelImageInput');
+    if (labelImageInput) {
+        labelImageInput.addEventListener('change', (event) => {
+            const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+            prepareLabelFile(file);
+        });
+    }
+
+    const chooseLabelBtn = document.getElementById('chooseLabelBtn');
+    if (chooseLabelBtn && labelImageInput) {
+        chooseLabelBtn.addEventListener('click', () => {
+            labelImageInput.click();
+        });
+    }
+
+    const labelDropZone = document.getElementById('labelDropZone');
+    if (labelDropZone) {
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            labelDropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setDropZoneActive(true);
+            });
+        });
+
+        ['dragleave', 'dragend', 'drop'].forEach((eventName) => {
+            labelDropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setDropZoneActive(false);
+            });
+        });
+
+        labelDropZone.addEventListener('drop', (event) => {
+            const file = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files[0] : null;
+            prepareLabelFile(file);
+        });
+    }
+
+    const tryNowBtn = document.getElementById('tryNowBtn');
+    const labelUploadCard = document.getElementById('labelUploadCard');
+    if (tryNowBtn && labelUploadCard) {
+        tryNowBtn.addEventListener('click', () => {
+            labelUploadCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     }
 

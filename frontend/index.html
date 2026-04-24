@@ -96,6 +96,16 @@
                 <div class="main-content">
                     <!-- Scanner Page -->
                     <div id="scannerSection" class="section active">
+                        <div class="scanner-hero">
+                            <div class="scanner-hero-copy">
+                                <span class="scanner-hero-kicker">Nutrition Intelligence</span>
+                                <h1>Smart Nutrition Scanner</h1>
+                                <p>Scan any food label and get instant health insights</p>
+                                <button id="tryNowBtn" class="btn btn-primary">Try Now</button>
+                            </div>
+                            <div class="scanner-hero-orb"></div>
+                        </div>
+
                         <h2>📱 Barcode Scanner</h2>
                         <div class="scanner-box">
                             <div id="scannerContainer" class="camera-container">
@@ -108,6 +118,55 @@
     📷 Start Camera
 </button>
 
+                        </div>
+
+                        <div class="label-upload-card" id="labelUploadCard">
+                            <div class="label-upload-header">
+                                <div>
+                                    <h3>🧾 Scan Nutrition Label</h3>
+                                    <p class="label-upload-hint">Drag and drop a nutrition label or browse from your device for OCR-based analysis.</p>
+                                </div>
+                                <span class="label-upload-chip">OCR + Health Rules</span>
+                            </div>
+
+                            <div id="labelDropZone" class="label-dropzone">
+                                <input type="file" id="labelImageInput" accept="image/*" class="label-upload-input">
+                                <div class="label-dropzone-copy">
+                                    <span class="label-dropzone-badge">Drag & Drop</span>
+                                    <h4>Upload a nutrition label image</h4>
+                                    <p>PNG, JPG or WEBP. Clear, front-facing photos work best.</p>
+                                </div>
+                                <button id="chooseLabelBtn" type="button" class="btn btn-secondary">Upload Image</button>
+                            </div>
+
+                            <div class="label-preview-panel">
+                                <div id="labelPreviewEmpty" class="label-preview-empty">
+                                    <strong>No preview yet</strong>
+                                    <p>Your uploaded label will appear here before scanning.</p>
+                                </div>
+                                <img id="labelPreviewImage" class="label-preview-image" alt="Nutrition label preview" style="display:none;">
+                            </div>
+
+                            <button id="scanLabelBtn" class="btn btn-primary">Scan Nutrition Label</button>
+
+                            <div id="scanLabelLoading" class="label-loading-panel" style="display:none;">
+                                <div class="label-spinner"></div>
+                                <div>
+                                    <strong>Processing your nutrition label...</strong>
+                                    <p>We are extracting text, normalizing nutrients, and evaluating health rules.</p>
+                                </div>
+                            </div>
+
+                            <div id="scanLabelSkeleton" class="label-skeleton" style="display:none;">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+
+                            <div id="scanLabelStatus" class="label-status"></div>
+                            <div id="scanLabelError" class="label-error" style="display:none;"></div>
+                            <div id="scanLabelResult" class="label-result" style="display:none;"></div>
                         </div>
 
                         <!-- Result Display -->
