@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["gateway:8080"]
+  - job_name: nutrilens-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - "auth-service:8080"
+          - "user-service:8080"
+          - "nutrition-service:8080"
+          - "analytics-service:8080"
+          - "recommendation-service:8080"
+          - "leaderboard-service:8080"
+          - "achievement-service:8080"
+          - "notification-service:8080"
+

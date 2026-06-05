@@ -1,0 +1,78 @@
+server:
+  port: 8080
+
+nutrilens:
+  auth:
+    issuer: ${AUTH_ISSUER:http://auth-service:8080}
+    access-token-ttl-minutes: ${ACCESS_TOKEN_TTL_MINUTES:15}
+    refresh-token-ttl-days: ${REFRESH_TOKEN_TTL_DAYS:30}
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://postgres:5432/nutrilens}
+    username: ${DATABASE_USERNAME:nutrilens}
+    password: ${DATABASE_PASSWORD:nutrilens}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: auth
+        jdbc.time_zone: UTC
+  flyway:
+    schemas: auth
+    default-schema: auth
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:nutrilens-google-client}
+            client-secret: ${GOOGLE_CLIENT_SECRET:nutrilens-google-secret}
+            scope: openid,profile,email
+          github:
+            client-id: ${GITHUB_CLIENT_ID:nutrilens-github-client}
+            client-secret: ${GITHUB_CLIENT_SECRET:nutrilens-github-secret}
+            scope: read:user,user:email
+          apple:
+            client-id: ${APPLE_CLIENT_ID:nutrilens.apple.service}
+            client-secret: ${APPLE_CLIENT_SECRET:nutrilens-apple-secret}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid,name,email
+        provider:
+          apple:
+            authorization-uri: https://appleid.apple.com/auth/authorize
+            token-uri: https://appleid.apple.com/auth/token
+            jwk-set-uri: https://appleid.apple.com/auth/keys
+            user-name-attribute: sub
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+

@@ -1,0 +1,21 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deployment summary
+        run: |
+          echo "Deploy NutriLens images built from $GITHUB_SHA"
+          echo "Cloud credentials, domains, and OAuth secrets are provided by the target environment."
+
