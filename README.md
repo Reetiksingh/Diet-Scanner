@@ -1,4 +1,4 @@
-# NutriLens
+# NutriLens (Formerly Diet Scanner)
 
 A Distributed Nutrition Intelligence and Dietary Analytics Platform.
 
